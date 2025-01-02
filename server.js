@@ -30,7 +30,7 @@ app.use(
   })
 );
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:3000'); 
+  res.header('Access-Control-Allow-Origin', 'http://localhost:3000' , 'https://task-mange-app.vercel.app'); 
   console.log(req.headers); // Check what headers are being passed
 
   res.header('Access-Control-Allow-Credentials', 'true');
