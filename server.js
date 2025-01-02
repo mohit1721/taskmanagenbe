@@ -22,7 +22,7 @@ app.use(cookieParser());
 app.use(
   cors({
     // origin:[ "http://localhost:3000", "https://taskmanage.vercel.app"],//"*",  //FOR FRONTEND..//  methods: ["GET", "POST", "PUT", "DELETE"],..VVI..to entertain frontend req.[[http://localhost:3000]] -->:["http://localhost:3000","https://mystudynotion.vercel.app","https://study1-jlkmw7ckr-mohit1721s-projects.vercel.app"], --------------------------["https://mystudynotion.vercel.app"]  
-    origin: process.env.NODE_ENV === 'production' ? "https://task-manage-app.vercel.app" : "http://localhost:3000", // Conditional origin based on environment
+    origin: process.env.NODE_ENV === 'production' ? "https://task-mange-app.vercel.app" : "http://localhost:3000", // Conditional origin based on environment
 
     methods: ['GET', 'POST','PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'], // Allow Authorization header
