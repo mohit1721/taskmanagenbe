@@ -186,11 +186,11 @@ exports.deleteTask = async (req, res) => {
     console.log("taskId BE del...: " + taskId)
     // Find and delete the task for the logged-in user
     const task = await Task.findOneAndDelete({ _id: taskId, userId: userId });
-
+    console.log("deleted task" , task)
     if (!task) {
       return res.status(404).json({ message: 'Task not found or you do not have permission to delete this task' });
     }
-      res.json({ message: 'Task deleted successfully' });
+    return res.json({ task ,message: 'Task deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Failed to delete task' });
   }
