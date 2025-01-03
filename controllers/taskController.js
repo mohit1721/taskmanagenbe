@@ -178,27 +178,29 @@ console.log("userId in get Stats", userId)
   };
   
 
+  // good in be
   
-exports.deleteTask = async (req, res) => {
-  try {
-    const userId = req.user.id; // Assuming `req.user` is set by your authentication middleware
-    const taskId = req.params.id
-    console.log("taskId BE del...: " + taskId)
-    // Find and delete the task for the logged-in user
-    const task = await Task.findOne({userId, taskId})
-    await Task.findOneAndDelete({ _id: taskId, userId: userId });
-    // console.log("deleted task be" , task)
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found or you do not have permission to delete this task' });
-    }
-    return res.status(200).json({
-      success : true,
-      deletedTask :task,
-      message: 'Task deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to delete task' });
-  }
-};
+// exports.deleteTask = async (req, res) => {
+//   try {
+//     const userId = req.user.id; // Assuming `req.user` is set by your authentication middleware
+//     const taskId = req.params.id
+//     console.log("taskId BE del...: " + taskId)
+//     // Find and delete the task for the logged-in user
+//     const task = await Task.findOne({userId, taskId})
+//     await Task.findOneAndDelete({ _id: taskId, userId: userId });
+//     // console.log("deleted task be" , task)
+//     if (!task) {
+//       return res.status(404).json({ message: 'Task not found or you do not have permission to delete this task' });
+//     }
+//     return res.status(200).json({
+//       success : true,
+//       deletedTask :task,
+//       message: 'Task deleted successfully' });
+//   } catch (err) {
+//     res.status(500).json({ message: 'Failed to delete task' });
+//   }
+// };
+
 //DASHBOARD 
 
 ///-----good
@@ -290,4 +292,34 @@ exports.getAllTasksForDashboard = async (req, res) => {
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
+};
+
+exports.deleteTask = async (req, res) => {
+  try {
+    const userId = req.user.id; // Authentication middleware should provide userId
+    const taskId = req.params.id;
+    console.log("TaskId BE del: " + taskId);
+
+    // Find and delete the task for the logged-in user
+    const task = await Task.findOneAndDelete({ _id: taskId, userId });
+
+    if (!task) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Task not found or you do not have permission to delete this task' 
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      deletedTask: task,
+      message: 'Task deleted successfully'
+    });
+  } catch (err) {
+    console.error("DELETE_TASK_API ERROR:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to delete task' 
+    });
+  }
 };
