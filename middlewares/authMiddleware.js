@@ -5,11 +5,11 @@ require("dotenv").config();
 const authenticate =async (req, res, next) => {
 
   const token = req.cookies.token ||  req.header('Authorization')?.replace("Bearer ", "")  || req.body.token;
-  console.log("Received Token in Middleware:", token); // Add this line for debugging
-  console.log("Authorization Header:", req.header('Authorization'));
-  console.log("Cookies token:", req.cookies.token);
+  // console.log("Received Token in Middleware:", token); // Add this line for debugging
+  // console.log("Authorization Header:", req.header('Authorization'));
+  // console.log("Cookies token:", req.cookies.token);
   // console.log("Body Token:", req.body.token);
-  console.log("Final Token Extracted:", token);
+  // console.log("Final Token Extracted:", token);
   if (!token) {
     return res.status(401).json({       
        success: false,

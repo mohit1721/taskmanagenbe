@@ -32,9 +32,9 @@ user.token = token; //toObject....need
 user.password = undefined;
 
 // 
-console.log("token in backend storage afetr signUp ", token)
+// console.log("token in backend storage afetr signUp ", token)
 
-//5.create cookie and send response.. // Set cookie for token and return success response
+//create cookie and send response.. // Set cookie for token and return success response
       const options = {
         expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
         httpOnly: true,
@@ -81,19 +81,19 @@ exports.login = async (req, res) => {
               message: `All fields are required, please try again`,
             })
           }
-          console.log("mail pwd of login credential", email, password)
+          // console.log("mail pwd of login credential", email, password)
     const user = await User.findOne({ email });
-    console.log("user after login",user)
+    // console.log("user after login",user)
     if (!user) {
       return res.status(400).json({ message: `User is not registered,please signup first` });
     }
 
     const isMatch = await bcryptjs.compare(password, user.password);
-    console.log("db password",user.password)
-    console.log("Type of input password:", typeof password); // Should be 'string'
-console.log("Type of stored password:", typeof user.password); // Should be 'string'
+//     console.log("db password",user.password)
+//     console.log("Type of input password:", typeof password); // Should be 'string'
+// console.log("Type of stored password:", typeof user.password); // Should be 'string'
 
-    console.log("ismatched??",isMatch)
+    // console.log("ismatched??",isMatch)
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
@@ -106,8 +106,8 @@ user.token = token; //toObject....need
 user.password = undefined;
 
 // 
-console.log("token in backend storage afetr login[user.token] wala ", user.token)
-console.log("token in backend storage afetr login ", token)
+// console.log("token in backend storage afetr login[user.token] wala ", user.token)
+// console.log("token in backend storage afetr login ", token)
 
 //5.create cookie and send response.. // Set cookie for token and return success response
       const options = {
@@ -139,7 +139,7 @@ console.log("token in backend storage afetr login ", token)
 exports.logout = async (req, res) => {
   try {
     const token =  req.header('Authorization')?.replace("Bearer ", "") || req.cookies.token || req.body.token;
-console.log("token in logout", token)
+// console.log("token in logout", token)
       if (!token) {
           return res.status(401).json({
               success: false,
@@ -152,8 +152,6 @@ console.log("token in logout", token)
   sameSite: 'None',
   secure: true, // Ensure secure flag is set for production (HTTPS)
 });
-      // ✅ Add token to blacklist
-      // await TokenBlacklist.create({ token });
 
       return res.status(200).json({
           success: true,

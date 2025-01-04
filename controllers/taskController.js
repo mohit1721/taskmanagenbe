@@ -4,10 +4,10 @@ const { taskValidator } = require('../utils/validators');
 
 exports.createTask = async (req, res) => {
   const token =  req.header('Authorization')?.replace("Bearer ", "") || req.cookies.token || req.body.token;
-console.log("token in createtask controller" , token)
+// console.log("token in createtask controller" , token)
   try {
     const { error } = taskValidator.validate(req.body);
-console.log("req.user.id", req.user.id);
+// console.log("req.user.id", req.user.id);
     const newTask = await Task.create({ ...req.body, userId: req.user.id });
     await User.findByIdAndUpdate(
         {
@@ -20,7 +20,7 @@ console.log("req.user.id", req.user.id);
             }
         }
     )
-    console.log("my new task-> from FE ",newTask)
+    // console.log("my new task-> from FE ",newTask)
    return res.status(201).json({
     
     success: true,
@@ -51,12 +51,12 @@ exports.getTasks = async (req, res) => {
       } = req.query;
 // ✅ Explicitly Set Default Value for sortBy if Undefined or Empty
 // const finalSortBy = sortBy && sortBy.trim() !== '' ? sortBy : 'endTime_desc';
-console.log('Raw Query:', req.query);
+// console.log('Raw Query:', req.query);
 
-console.log("my query from fe", status , priority,sortBy,order)
+// console.log("my query from fe", status , priority,sortBy,order)
  // Ensure we have the logged-in user's ID
  const userId = req.user.id;  // Assuming `req.user` is set by your authentication middleware
-console.log("userId in get Stats", userId)
+// console.log("userId in get Stats", userId)
       // ✅ Build Query: Filtering Logic
       let filter = {userId};
       if (priority && priority !== 'all') filter.priority = Number(priority); // Filter by priority
@@ -86,8 +86,6 @@ console.log("userId in get Stats", userId)
       // ✅ Pagination Logic
       const skip = (page - 1) * limit;
 
-      // ✅ Fetch Data from the Database
-  // const users_tasks = await User.find(tasks)
 
       const tasks = await Task.find(filter)
           .sort(sortOption)
@@ -96,7 +94,7 @@ console.log("userId in get Stats", userId)
 
       // ✅ Get Total Count for Pagination
       const totalTasks = await Task.countDocuments(filter);
-console.log("filtered tasks: " + tasks)
+// console.log("filtered tasks: " + tasks)
         // const totalTasks = tasks.length;
       // ✅ Response
     return res.status(200).json({
@@ -118,10 +116,10 @@ exports.updateTask = async (req, res) => {
     try {
       const taskId = req.params.id;
       const  updatedData  = req.body;
-      const { status } = req.body; // New status from request body
+      
  // Ensure we have the logged-in user's ID
  const userId = req.user.id;  // Assuming `req.user` is set by your authentication middleware
-console.log("userId in get Stats", userId)
+// console.log("userId in get Stats", userId)
       // Fetch the task by ID
       // const task = await Task.findById(taskId);
        // Fetch the task by ID and ensure it belongs to the logged-in user
@@ -180,26 +178,36 @@ console.log("userId in get Stats", userId)
 
   // good in be
   
-// exports.deleteTask = async (req, res) => {
-//   try {
-//     const userId = req.user.id; // Assuming `req.user` is set by your authentication middleware
-//     const taskId = req.params.id
-//     console.log("taskId BE del...: " + taskId)
-//     // Find and delete the task for the logged-in user
-//     const task = await Task.findOne({userId, taskId})
-//     await Task.findOneAndDelete({ _id: taskId, userId: userId });
-//     // console.log("deleted task be" , task)
-//     if (!task) {
-//       return res.status(404).json({ message: 'Task not found or you do not have permission to delete this task' });
-//     }
-//     return res.status(200).json({
-//       success : true,
-//       deletedTask :task,
-//       message: 'Task deleted successfully' });
-//   } catch (err) {
-//     res.status(500).json({ message: 'Failed to delete task' });
-//   }
-// };
+exports.deleteTask = async (req, res) => {
+  try {
+    const userId = req.user.id; // Assuming `req.user` is set by your authentication middleware
+    const taskId = req.params.id;
+    // console.log("taskId BE del...: " + taskId)
+    // console.log("UserId BE del:", userId);
+    // Find and delete the task for the logged-in user
+    
+     // Ensure userId is cast to ObjectId
+     const task = await Task.findOne({
+      _id: taskId,
+      userId: userId
+    });
+
+    await Task.deleteOne({ _id: taskId});
+    // console.log("deleted task be" , task)
+    if (!task) {
+      return res.status(404).json({  success: false,
+         message: 'Task not found or you do not have permission to delete this task' });
+    }
+    return res.status(200).json({
+      success : true,
+      deletedTask :task,
+      message: 'Task deleted successfully' });
+  } catch (err) {
+    res.status(500).json({     
+       success: false, 
+      message: 'Failed to delete task' });
+  }
+};
 
 //DASHBOARD 
 
@@ -261,65 +269,3 @@ exports.getDashboardStats = async (req, res) => {
   }
 };
 
-
-// Get all tasks for dashboard with detailed stats
-
-// TASK-LISTS
-exports.getAllTasksForDashboard = async (req, res) => {
-    try {
-        const tasks = await Task.find();
-
-        const detailedTasks = tasks.map(task => {
-            const currentTime = new Date();
-            let timeLapsed = 0;
-            let balanceTime = 0;
-
-            if (task.status === 'Pending') {
-                timeLapsed = currentTime > task.startTime ? (currentTime - task.startTime) / 3600000 : 0;
-                balanceTime = currentTime < task.endTime ? (task.endTime - currentTime) / 3600000 : 0;
-            } else if (task.status === 'Finished') {
-                timeLapsed = (task.endTime - task.startTime) / 3600000;
-            }
-
-            return {
-                ...task.toObject(),
-                timeLapsed: timeLapsed.toFixed(2),
-                balanceTime: balanceTime.toFixed(2)
-            };
-        });
-
-        res.status(200).json(detailedTasks);
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-};
-
-exports.deleteTask = async (req, res) => {
-  try {
-    const userId = req.user.id; // Authentication middleware should provide userId
-    const taskId = req.params.id;
-    console.log("TaskId BE del: " + taskId);
-
-    // Find and delete the task for the logged-in user
-    const task = await Task.findOneAndDelete({ _id: taskId, userId });
-
-    if (!task) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Task not found or you do not have permission to delete this task' 
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      deletedTask: task,
-      message: 'Task deleted successfully'
-    });
-  } catch (err) {
-    console.error("DELETE_TASK_API ERROR:", err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to delete task' 
-    });
-  }
-};

@@ -21,23 +21,27 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    // origin:[ "http://localhost:3000", "https://taskmanage.vercel.app"],//"*",  //FOR FRONTEND..//  methods: ["GET", "POST", "PUT", "DELETE"],..VVI..to entertain frontend req.[[http://localhost:3000]] -->:["http://localhost:3000","https://mystudynotion.vercel.app","https://study1-jlkmw7ckr-mohit1721s-projects.vercel.app"], --------------------------["https://mystudynotion.vercel.app"]  
-    origin: process.env.NODE_ENV === 'production' ? "https://task-mange-app.vercel.app" : "http://localhost:3000", // Conditional origin based on environment
+    origin: process.env.NODE_ENV === 'production' 
+      ? "https://task-mange-app.vercel.app" 
+      : "http://localhost:3000", // Conditional origin based on environment
 
-    methods: ['GET', 'POST','PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'], // Allow Authorization header
-    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
+
+    allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
+
+    credentials: true, // Allows cookies and authentication credentials
   })
 );
+
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'http://localhost:3000' , 'https://task-mange-app.vercel.app'); 
-  console.log(req.headers); // Check what headers are being passed
+  // console.log(req.headers); // Check what headers are being passed
 
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   next();
 });
-//4. routes mount..
+//. routes mount..
 app.use("/api/v1/auth/", authRoutes);
 app.use("/api/v1/", taskRoutes);
 
