@@ -5,7 +5,7 @@ const taskValidator = Joi.object({
     startTime: Joi.date().required(),
     endTime: Joi.date().required(),
     priority: Joi.number().integer().min(1).max(5).required(),
-    status: Joi.string().valid('Pending', 'Finished')
+    status: Joi.string().valid('pending', 'finished')
 });
 
 module.exports = { taskValidator };
