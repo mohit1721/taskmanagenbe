@@ -7,6 +7,22 @@ exports.createTask = async (req, res) => {
 // console.log("token in createtask controller" , token)
   try {
     const { error } = taskValidator.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation Error",
+        error: error.details[0].message,
+      });
+    }
+    const { startDate, endDate } = req.body;
+
+    // Check if endDate is greater than startDate
+    if (new Date(endDate) < new Date(startDate)) {
+      return res.status(400).json({
+        success: false,
+        message: "End date must be greater than start date",
+      });
+    }
 // console.log("req.user.id", req.user.id);
     const newTask = await Task.create({ ...req.body, userId: req.user.id });
     await User.findByIdAndUpdate(
@@ -155,7 +171,7 @@ exports.getTasks = async (req, res) => {
     performance.measure('Execution Time', 'start', 'end');
     
     const measure = performance.getEntriesByName('Execution Time')[0];
-    console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
+    // console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
     // ✅ Response
     return res.status(200).json({
       success: true,
@@ -291,7 +307,7 @@ exports.getTasks = async (req, res) => {
       performance.measure('Execution Time', 'start', 'end');
       
       const measure = performance.getEntriesByName('Execution Time')[0];
-      console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
+      // console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
       // Return the updated task details
       res.status(200).json({
         success: true,
@@ -366,8 +382,8 @@ exports.deleteTask = async (req, res) => {
 //       // Dashboard Summary Stats
 //       const totalTasks = tasks.length;
 //       const completedPercentage = (completedTasks.length / totalTasks) * 100 || 0;
-//       const pendingPercentage = 100 - completedPercentage;
-
+// const pendingPercentage = totalTasks > 0 ? (100 - completedPercentage ) : 0;
+// 
 //       const averageCompletionTime = completedTasks.reduce((sum, task) => {
 //           return sum + (new Date(task.endTime) - new Date(task.startTime));
 //       }, 0) / (completedTasks.length || 1);
@@ -419,12 +435,97 @@ exports.deleteTask = async (req, res) => {
 
 
 //optimised version // 150 ms
+// exports.getDashboardStats = async (req, res) => {
+//   performance.mark('start');
+
+//   try {
+//     const userId = req.user.id; // Assuming `req.user` is set by authentication middleware
+    
+//     // Fetch all tasks for the user
+//     const tasks = await Task.find({ userId });
+
+//     // Initialize Counters and Reducers
+//     let completedCount = 0;
+//     let pendingCount = 0;
+//     let totalCompletionTime = 0;
+
+//     const pendingSummary = [1, 2, 3, 4, 5].map(priority => ({
+//       priority,
+//       pendingTasks: 0,
+//       timeLapsed: 0,
+//       timeToFinish: 0,
+//     }));
+
+//     // Process Tasks in One Loop
+//     tasks.forEach(task => {
+//       if (task.status === 'finished') {
+//         completedCount++;
+//         totalCompletionTime += new Date(task.endTime) - new Date(task.startTime);
+//       } else if (task.status === 'pending') {
+//         pendingCount++;
+//         const timeLapsed = (new Date() - new Date(task.startTime)) / 3600000; // in hours
+//         const timeToFinish = (new Date(task.endTime) - new Date()) / 3600000; // in hours
+        
+//         // Update priority-based summary
+//         const priorityIndex = task.priority - 1;
+//         if (pendingSummary[priorityIndex]) {
+//           pendingSummary[priorityIndex].pendingTasks++;
+//           pendingSummary[priorityIndex].timeLapsed += timeLapsed;
+//           pendingSummary[priorityIndex].timeToFinish += timeToFinish;
+//         }
+//       }
+//     });
+
+//     // Dashboard Stats Calculations
+//     const totalTasks = tasks.length;
+//     const completedPercentage = ((completedCount / totalTasks) * 100) || 0;
+//     const pendingPercentage = totalTasks > 0 ? (100 - completedPercentage ) : 0;
+//     const averageCompletionTime = (totalCompletionTime / (completedCount || 1)) / 3600000; // in hours
+
+//     // Aggregate Pending Summary Totals
+//     const totalPendingTasks = pendingSummary.reduce((sum, p) => sum + p.pendingTasks, 0);
+//     const totalTimeLapsed = pendingSummary.reduce((sum, p) => sum + p.timeLapsed, 0).toFixed(2);
+//     const totalTimeToFinish = pendingSummary.reduce((sum, p) => sum + p.timeToFinish, 0).toFixed(2);
+
+
+//     performance.mark('end');
+//     performance.measure('Execution Time', 'start', 'end');
+    
+//     const measure = performance.getEntriesByName('Execution Time')[0];
+//     console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
+//     // Final Response
+//     return res.status(200).json({
+//       totalTasks,
+//       completedPercentage,
+//       pendingPercentage,
+//       averageCompletionTime,
+//       pendingSummary: pendingSummary.map(p => ({
+//         ...p,
+//         timeLapsed: parseFloat(p.timeLapsed.toFixed(2)),
+//         timeToFinish: parseFloat(p.timeToFinish.toFixed(2)),
+//       })),
+//       totalPendingTasks,
+//       totalTimeLapsed,
+//       totalTimeToFinish,
+//     });
+//   } catch (err) {
+//     console.error('Error in getDashboardStats:', err.message);
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message || 'Failed to fetch dashboard stats',
+//     });
+//   }
+ 
+// };
+
+
+// --
 exports.getDashboardStats = async (req, res) => {
   performance.mark('start');
 
   try {
     const userId = req.user.id; // Assuming `req.user` is set by authentication middleware
-    
+
     // Fetch all tasks for the user
     const tasks = await Task.find({ userId });
 
@@ -442,14 +543,25 @@ exports.getDashboardStats = async (req, res) => {
 
     // Process Tasks in One Loop
     tasks.forEach(task => {
+      const startTime = new Date(task.startTime);
+      const endTime = new Date(task.endTime);
+      const now = new Date();
+
       if (task.status === 'finished') {
         completedCount++;
-        totalCompletionTime += new Date(task.endTime) - new Date(task.startTime);
+        totalCompletionTime += Math.max(0, endTime - startTime); // Ensure non-negative duration
       } else if (task.status === 'pending') {
         pendingCount++;
-        const timeLapsed = (new Date() - new Date(task.startTime)) / 3600000; // in hours
-        const timeToFinish = (new Date(task.endTime) - new Date()) / 3600000; // in hours
-        
+        // const timeLapsed = Math.max(0, (now - startTime) / 3600000); // Ensure non-negative lapsed time
+       
+          // Only calculate lapsed time if endTime >= startTime
+          let timeLapsed = 0;
+          if (endTime >= startTime) {
+            timeLapsed = Math.max(0, (now - startTime) / 3600000); // Ensure non-negative lapsed time
+          }
+       
+        const timeToFinish = Math.max(0, (endTime - now) / 3600000); // Ensure non-negative time to finish
+
         // Update priority-based summary
         const priorityIndex = task.priority - 1;
         if (pendingSummary[priorityIndex]) {
@@ -463,7 +575,7 @@ exports.getDashboardStats = async (req, res) => {
     // Dashboard Stats Calculations
     const totalTasks = tasks.length;
     const completedPercentage = ((completedCount / totalTasks) * 100) || 0;
-    const pendingPercentage = totalTasks > 0 ? (100 - completedPercentage ) : 0;
+    const pendingPercentage = totalTasks > 0 ? (100 - completedPercentage) : 0;
     const averageCompletionTime = (totalCompletionTime / (completedCount || 1)) / 3600000; // in hours
 
     // Aggregate Pending Summary Totals
@@ -471,12 +583,12 @@ exports.getDashboardStats = async (req, res) => {
     const totalTimeLapsed = pendingSummary.reduce((sum, p) => sum + p.timeLapsed, 0).toFixed(2);
     const totalTimeToFinish = pendingSummary.reduce((sum, p) => sum + p.timeToFinish, 0).toFixed(2);
 
-
     performance.mark('end');
     performance.measure('Execution Time', 'start', 'end');
-    
+
     const measure = performance.getEntriesByName('Execution Time')[0];
-    console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
+    // console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
+
     // Final Response
     return res.status(200).json({
       totalTasks,
@@ -499,5 +611,4 @@ exports.getDashboardStats = async (req, res) => {
       message: err.message || 'Failed to fetch dashboard stats',
     });
   }
- 
 };
