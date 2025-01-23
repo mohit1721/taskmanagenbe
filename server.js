@@ -10,6 +10,9 @@ const cookieParser = require("cookie-parser");
 const PORT = process.env.PORT || 4000;
 const database = require("./db/database");
 const cors = require("cors");
+const Redis = require('ioredis')
+const redisClient = new Redis;
+
 dotenv.config();//load dotenv config
 database.connect();//
 
@@ -32,6 +35,7 @@ app.use(
     credentials: true, // Allows cookies and authentication credentials
   })
 );
+ 
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'http://localhost:3000' , 'https://task-mange-app.vercel.app'); 
@@ -44,6 +48,10 @@ app.use((req, res, next) => {
 //. routes mount..
 app.use("/api/v1/auth/", authRoutes);
 app.use("/api/v1/", taskRoutes);
+
+
+redisClient.on('connect', () => console.log('Redis connected'));
+redisClient.on('error', (err) => console.error('Redis error:', err));
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

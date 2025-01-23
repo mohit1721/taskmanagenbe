@@ -1,7 +1,8 @@
 const Task = require('../models/Task');
 const User = require('../models/User');
 const { taskValidator } = require('../utils/validators');
-
+const Redis = require('ioredis')
+const redisClient = new Redis;
 exports.createTask = async (req, res) => {
   const token =  req.header('Authorization')?.replace("Bearer ", "") || req.cookies.token || req.body.token;
 // console.log("token in createtask controller" , token)
@@ -148,7 +149,23 @@ exports.getTasks = async (req, res) => {
     } = req.query;
 
     const userId = req.user.id; // Ensure user is authenticated
+    const cacheKey = `tasklists:${userId}:${status}:${priority}:${sortBy}:${order}:${page}:${limit}`;
+    // Check if data exists in Redis cache
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      const { tasks, totalTasks } = JSON.parse(cachedData);
+      performance.mark('end');
+      performance.measure('Execution Time', 'start', 'end');
 
+      return res.status(200).json({
+        success: true,
+        tasks,
+        totalTasks,
+        currentPage: Number(page),
+        totalPages: Math.ceil(totalTasks / Number(limit)),
+        cached: true // Indicate this response is cached
+      });
+    }
     // ✅ Build Query Filter
     const filter = { userId };
     if (priority !== 'all') filter.priority = Number(priority);
@@ -167,6 +184,10 @@ exports.getTasks = async (req, res) => {
       Task.find(filter).sort(sortOption).skip(skip).limit(Number(limit)),
       Task.countDocuments(filter)
     ]);
+      // Cache the results in Redis with an expiry time (e.g., 1 hour)
+      const cacheValue = JSON.stringify({ tasks, totalTasks });
+      await redisClient.setex(cacheKey, 300, cacheValue); // Expires in 300 seconds (5 min)
+  
     performance.mark('end');
     performance.measure('Execution Time', 'start', 'end');
     
@@ -179,6 +200,8 @@ exports.getTasks = async (req, res) => {
       totalTasks,
       currentPage: Number(page),
       totalPages: Math.ceil(totalTasks / Number(limit)),
+      cached: false // Indicate this response is not cached
+
     });
 
   } catch (err) {
@@ -525,6 +548,21 @@ exports.getDashboardStats = async (req, res) => {
 
   try {
     const userId = req.user.id; // Assuming `req.user` is set by authentication middleware
+    // Generate a unique cache key for the user's dashboard stats
+    const cacheKey = `dashboardStats:${userId}`;
+    // Check if data exists in Redis cache
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      const stats = JSON.parse(cachedData);
+      performance.mark('end');
+      performance.measure('Execution Time', 'start', 'end');
+
+      return res.status(200).json({
+        ...stats,
+        cached: true, // Indicate the response is cached
+      });
+    }
+
 
     // Fetch all tasks for the user
     const tasks = await Task.find({ userId });
@@ -583,27 +621,48 @@ exports.getDashboardStats = async (req, res) => {
     const totalTimeLapsed = pendingSummary.reduce((sum, p) => sum + p.timeLapsed, 0).toFixed(2);
     const totalTimeToFinish = pendingSummary.reduce((sum, p) => sum + p.timeToFinish, 0).toFixed(2);
 
-    performance.mark('end');
-    performance.measure('Execution Time', 'start', 'end');
+    // performance.mark('end');
+    // performance.measure('Execution Time', 'start', 'end');
 
-    const measure = performance.getEntriesByName('Execution Time')[0];
+    // const measure = performance.getEntriesByName('Execution Time')[0];
     // console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
 
     // Final Response
-    return res.status(200).json({
-      totalTasks,
-      completedPercentage,
-      pendingPercentage,
-      averageCompletionTime,
-      pendingSummary: pendingSummary.map(p => ({
-        ...p,
-        timeLapsed: parseFloat(p.timeLapsed.toFixed(2)),
-        timeToFinish: parseFloat(p.timeToFinish.toFixed(2)),
-      })),
-      totalPendingTasks,
-      totalTimeLapsed,
-      totalTimeToFinish,
-    });
+    // return res.status(200).json({
+    //   totalTasks,
+    //   completedPercentage,
+    //   pendingPercentage,
+    //   averageCompletionTime,
+    //   pendingSummary: pendingSummary.map(p => ({
+    //     ...p,
+    //     timeLapsed: parseFloat(p.timeLapsed.toFixed(2)),
+    //     timeToFinish: parseFloat(p.timeToFinish.toFixed(2)),
+    //   })),
+    //   totalPendingTasks,
+    //   totalTimeLapsed,
+    //   totalTimeToFinish,
+    //   cached: false, // Indicate the response is not cached
+
+    // });
+ // Prepare final stats
+ const stats = {
+  totalTasks,
+  completedPercentage,
+  pendingPercentage,
+  averageCompletionTime,
+  pendingSummary: pendingSummary.map(p => ({
+    ...p,
+    timeLapsed: parseFloat(p.timeLapsed.toFixed(2)),
+    timeToFinish: parseFloat(p.timeToFinish.toFixed(2)),
+  })),
+  totalPendingTasks,
+  totalTimeLapsed,
+  totalTimeToFinish,
+  cached: false, // Indicate the response is not cached
+};
+     // Cache the results in Redis with a TTL (e.g., 1 hour)
+     await redisClient.setex(cacheKey, 300, JSON.stringify(stats)); // Expires in 300 seconds (1 hour)
+
   } catch (err) {
     console.error('Error in getDashboardStats:', err.message);
     return res.status(500).json({
