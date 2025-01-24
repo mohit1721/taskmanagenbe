@@ -3,22 +3,7 @@ const User = require('../models/User');
 const { setCache, getCache } = require("../utils/redisUtils"); // Utility functions import
 
 const { taskValidator } = require('../utils/validators');
-const Redis = require("ioredis")
-// const redisClient = new Redis;
-// const redisClient = new Redis(process.env.REDIS_URL);
-// Replace 'localhost' with the hostname or IP of your Redis server
-const redisClient = new Redis({
-  host: 'localhost',
-  port: 6379,
-});
-
-redisClient.on('connect', () => {
-  console.log('Connected to Redis');
-});
-
-redisClient.on('error', (err) => {
-  console.error('Redis connection error:', err.message);
-});
+ 
 exports.createTask = async (req, res) => {
   const token =  req.header('Authorization')?.replace("Bearer ", "") || req.cookies.token || req.body.token;
 // console.log("token in createtask controller" , token)
@@ -68,17 +53,7 @@ exports.createTask = async (req, res) => {
     error: err.message, });
   }
 };
-// redisClient.on('error', (err) => {
-//   console.error('Redis error:', err);
-// });
-// const redisClient = new Redis({
-//   host: "127.0.0.1",
-//   port: 6379,
-//   reconnectOnError: (err) => {
-//     console.error("Redis error:", err.message);
-//     return true;
-//   },
-// });
+ 
 
 //task list..363 ms
 //fine..
@@ -178,24 +153,7 @@ exports.getTasks = async (req, res) => {
     const userId = req.user.id; // Ensure user is authenticated
     const cacheKey = `tasklists:${userId}:${status}:${priority}:${sortBy}:${order}:${page}:${limit}`;
 
-    // Check if data exists in Redis cache
-    // const cachedData = await redisClient.get(cacheKey);
-    // if (cachedData) {
-    //   const { tasks, totalTasks, currentPage, totalPages } = JSON.parse(cachedData);
-    //   performance.mark('end');
-    //   performance.measure('Execution Time', 'start', 'end');
-    //   console.log(`Cache hit for key: ${cacheKey}`);
-
-    //   return res.status(200).json({
-    //     success: true,
-    //     tasks,
-    //     totalTasks,
-    //     currentPage,
-    //     totalPages,
-    //     cached: true // Indicate this response is cached
-    //   });
-    // }
-
+ 
     console.log(`Cache miss for key: ${cacheKey}`);
 
     // Build Query Filter
@@ -715,7 +673,7 @@ exports.getDashboardStats = async (req, res) => {
     const cacheKey = `dashboardStats:${userId}`; // Unique cache key for the user's dashboard stats
 
     // Check if data exists in Redis cache
-    const cachedData = await redisClient.get(cacheKey);
+    const cachedData = await getCache(cacheKey);
     if (cachedData) {
       const stats = JSON.parse(cachedData);
       performance.mark('end');
@@ -803,7 +761,7 @@ exports.getDashboardStats = async (req, res) => {
     };
 
     // Cache the results in Redis with a TTL (e.g., 5 minutes)
-    await redisClient.setex(cacheKey, 300, JSON.stringify(stats)); // Expires in 300 seconds
+    await setCache(cacheKey, JSON.stringify(stats), 300); // Expires in 300 seconds
 
     performance.mark('end');
     performance.measure('Execution Time', 'start', 'end');
