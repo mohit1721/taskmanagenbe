@@ -1,8 +1,24 @@
 const Task = require('../models/Task');
 const User = require('../models/User');
+const { setCache, getCache } = require("../utils/redisUtils"); // Utility functions import
+
 const { taskValidator } = require('../utils/validators');
-const Redis = require('ioredis')
-const redisClient = new Redis;
+const Redis = require("ioredis")
+// const redisClient = new Redis;
+// const redisClient = new Redis(process.env.REDIS_URL);
+// Replace 'localhost' with the hostname or IP of your Redis server
+const redisClient = new Redis({
+  host: 'localhost',
+  port: 6379,
+});
+
+redisClient.on('connect', () => {
+  console.log('Connected to Redis');
+});
+
+redisClient.on('error', (err) => {
+  console.error('Redis connection error:', err.message);
+});
 exports.createTask = async (req, res) => {
   const token =  req.header('Authorization')?.replace("Bearer ", "") || req.cookies.token || req.body.token;
 // console.log("token in createtask controller" , token)
@@ -52,7 +68,17 @@ exports.createTask = async (req, res) => {
     error: err.message, });
   }
 };
- 
+// redisClient.on('error', (err) => {
+//   console.error('Redis error:', err);
+// });
+// const redisClient = new Redis({
+//   host: "127.0.0.1",
+//   port: 6379,
+//   reconnectOnError: (err) => {
+//     console.error("Redis error:", err.message);
+//     return true;
+//   },
+// });
 
 //task list..363 ms
 //fine..
@@ -135,6 +161,7 @@ exports.createTask = async (req, res) => {
 // };
 
 // optimised version..140 ms
+// redis
 exports.getTasks = async (req, res) => {
   performance.mark('start');
 
@@ -144,64 +171,72 @@ exports.getTasks = async (req, res) => {
       priority = 'all',     // Default: Fetch all priorities
       sortBy = 'endTime',   // Default: Sort by endTime
       order = 'desc',       // Default: Descending order
-      page = 1,            // Default: First page
-      limit = 10           // Default: 10 tasks per page
+      page = 1,             // Default: First page
+      limit = 10            // Default: 10 tasks per page
     } = req.query;
 
     const userId = req.user.id; // Ensure user is authenticated
     const cacheKey = `tasklists:${userId}:${status}:${priority}:${sortBy}:${order}:${page}:${limit}`;
-    // Check if data exists in Redis cache
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
-      const { tasks, totalTasks } = JSON.parse(cachedData);
-      performance.mark('end');
-      performance.measure('Execution Time', 'start', 'end');
 
-      return res.status(200).json({
-        success: true,
-        tasks,
-        totalTasks,
-        currentPage: Number(page),
-        totalPages: Math.ceil(totalTasks / Number(limit)),
-        cached: true // Indicate this response is cached
-      });
-    }
-    // ✅ Build Query Filter
+    // Check if data exists in Redis cache
+    // const cachedData = await redisClient.get(cacheKey);
+    // if (cachedData) {
+    //   const { tasks, totalTasks, currentPage, totalPages } = JSON.parse(cachedData);
+    //   performance.mark('end');
+    //   performance.measure('Execution Time', 'start', 'end');
+    //   console.log(`Cache hit for key: ${cacheKey}`);
+
+    //   return res.status(200).json({
+    //     success: true,
+    //     tasks,
+    //     totalTasks,
+    //     currentPage,
+    //     totalPages,
+    //     cached: true // Indicate this response is cached
+    //   });
+    // }
+
+    console.log(`Cache miss for key: ${cacheKey}`);
+
+    // Build Query Filter
     const filter = { userId };
     if (priority !== 'all') filter.priority = Number(priority);
     if (status !== 'all') filter.status = status;
 
-    // ✅ Validate and Build Sorting Logic
+    // Validate and Build Sorting Logic
     const validSortFields = ['startTime', 'endTime', 'updatedAt', 'createdAt'];
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'endTime';
     const sortOption = { [sortField]: order === 'desc' ? -1 : 1 };
 
-    // ✅ Pagination Logic
+    // Pagination Logic
     const skip = (Number(page) - 1) * Number(limit);
 
-    // ✅ Fetch Data and Count in Parallel for Efficiency
+    // Fetch Data and Count in Parallel
     const [tasks, totalTasks] = await Promise.all([
       Task.find(filter).sort(sortOption).skip(skip).limit(Number(limit)),
       Task.countDocuments(filter)
     ]);
-      // Cache the results in Redis with an expiry time (e.g., 1 hour)
-      const cacheValue = JSON.stringify({ tasks, totalTasks });
-      await redisClient.setex(cacheKey, 300, cacheValue); // Expires in 300 seconds (5 min)
-  
+
+    const totalPages = Math.ceil(totalTasks / Number(limit));
+
+    // Cache the results in Redis with an expiry time (e.g., 5 minutes)
+    // const cacheValue = JSON.stringify({ tasks, totalTasks, currentPage: Number(page), totalPages });
+    // await redisClient.setex(cacheKey, cacheValue,120);
+
     performance.mark('end');
     performance.measure('Execution Time', 'start', 'end');
-    
+
     const measure = performance.getEntriesByName('Execution Time')[0];
-    // console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
-    // ✅ Response
+    console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
+
+    // Response
     return res.status(200).json({
       success: true,
       tasks,
       totalTasks,
       currentPage: Number(page),
-      totalPages: Math.ceil(totalTasks / Number(limit)),
+      totalPages,
       cached: false // Indicate this response is not cached
-
     });
 
   } catch (err) {
@@ -543,13 +578,142 @@ exports.deleteTask = async (req, res) => {
 
 
 // --
+// exports.getDashboardStats = async (req, res) => {
+//   performance.mark('start');
+
+//   try {
+//     const userId = req.user.id; // Assuming `req.user` is set by authentication middleware
+//     // Generate a unique cache key for the user's dashboard stats
+//     // const cacheKey = `dashboardStats:${userId}`;
+//     // // Check if data exists in Redis cache
+//     // const cachedData = await redisClient.get(cacheKey);
+//     // if (cachedData) {
+//     //   const stats = JSON.parse(cachedData);
+//     //   performance.mark('end');
+//     //   performance.measure('Execution Time', 'start', 'end');
+
+//     //   return res.status(200).json({
+//     //     ...stats,
+//     //     cached: true, // Indicate the response is cached
+//     //   });
+//     // }
+
+
+//     // Fetch all tasks for the user
+//     const tasks = await Task.find({ userId });
+
+//     // Initialize Counters and Reducers
+//     let completedCount = 0;
+//     let pendingCount = 0;
+//     let totalCompletionTime = 0;
+
+//     const pendingSummary = [1, 2, 3, 4, 5].map(priority => ({
+//       priority,
+//       pendingTasks: 0,
+//       timeLapsed: 0,
+//       timeToFinish: 0,
+//     }));
+
+//     // Process Tasks in One Loop
+//     tasks.forEach(task => {
+//       const startTime = new Date(task.startTime);
+//       const endTime = new Date(task.endTime);
+//       const now = new Date();
+
+//       if (task.status === 'finished') {
+//         completedCount++;
+//         totalCompletionTime += Math.max(0, endTime - startTime); // Ensure non-negative duration
+//       } else if (task.status === 'pending') {
+//         pendingCount++;
+//         // const timeLapsed = Math.max(0, (now - startTime) / 3600000); // Ensure non-negative lapsed time
+       
+//           // Only calculate lapsed time if endTime >= startTime
+//           let timeLapsed = 0;
+//           if (endTime >= startTime) {
+//             timeLapsed = Math.max(0, (now - startTime) / 3600000); // Ensure non-negative lapsed time
+//           }
+       
+//         const timeToFinish = Math.max(0, (endTime - now) / 3600000); // Ensure non-negative time to finish
+
+//         // Update priority-based summary
+//         const priorityIndex = task.priority - 1;
+//         if (pendingSummary[priorityIndex]) {
+//           pendingSummary[priorityIndex].pendingTasks++;
+//           pendingSummary[priorityIndex].timeLapsed += timeLapsed;
+//           pendingSummary[priorityIndex].timeToFinish += timeToFinish;
+//         }
+//       }
+//     });
+
+//     // Dashboard Stats Calculations
+//     const totalTasks = tasks.length;
+//     const completedPercentage = ((completedCount / totalTasks) * 100) || 0;
+//     const pendingPercentage = totalTasks > 0 ? (100 - completedPercentage) : 0;
+//     const averageCompletionTime = (totalCompletionTime / (completedCount || 1)) / 3600000; // in hours
+
+//     // Aggregate Pending Summary Totals
+//     const totalPendingTasks = pendingSummary.reduce((sum, p) => sum + p.pendingTasks, 0);
+//     const totalTimeLapsed = pendingSummary.reduce((sum, p) => sum + p.timeLapsed, 0).toFixed(2);
+//     const totalTimeToFinish = pendingSummary.reduce((sum, p) => sum + p.timeToFinish, 0).toFixed(2);
+
+//     // performance.mark('end');
+//     // performance.measure('Execution Time', 'start', 'end');
+
+//     // const measure = performance.getEntriesByName('Execution Time')[0];
+//     // console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
+
+//     // Final Response
+//     return res.status(200).json({
+//       totalTasks,
+//       completedPercentage,
+//       pendingPercentage,
+//       averageCompletionTime,
+//       pendingSummary: pendingSummary.map(p => ({
+//         ...p,
+//         timeLapsed: parseFloat(p.timeLapsed.toFixed(2)),
+//         timeToFinish: parseFloat(p.timeToFinish.toFixed(2)),
+//       })),
+//       totalPendingTasks,
+//       totalTimeLapsed,
+//       totalTimeToFinish,
+//       cached: false, // Indicate the response is not cached
+
+//     });
+//  // Prepare final stats
+// //  const stats = {
+// //   totalTasks,
+// //   completedPercentage,
+// //   pendingPercentage,
+// //   averageCompletionTime,
+// //   pendingSummary: pendingSummary.map(p => ({
+// //     ...p,
+// //     timeLapsed: parseFloat(p.timeLapsed.toFixed(2)),
+// //     timeToFinish: parseFloat(p.timeToFinish.toFixed(2)),
+// //   })),
+// //   totalPendingTasks,
+// //   totalTimeLapsed,
+// //   totalTimeToFinish,
+// //   cached: false, // Indicate the response is not cached
+// // };
+//      // Cache the results in Redis with a TTL (e.g., 1 hour)
+//     //  await redisClient.setex(cacheKey, JSON.stringify(stats), 300); // Expires in 300 seconds (1 hour)
+
+//   } catch (err) {
+//     console.error('Error in getDashboardStats:', err.message);
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message || 'Failed to fetch dashboard stats',
+//     });
+//   }
+// };
+// redis
 exports.getDashboardStats = async (req, res) => {
   performance.mark('start');
 
   try {
     const userId = req.user.id; // Assuming `req.user` is set by authentication middleware
-    // Generate a unique cache key for the user's dashboard stats
-    const cacheKey = `dashboardStats:${userId}`;
+    const cacheKey = `dashboardStats:${userId}`; // Unique cache key for the user's dashboard stats
+
     // Check if data exists in Redis cache
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
@@ -557,12 +721,17 @@ exports.getDashboardStats = async (req, res) => {
       performance.mark('end');
       performance.measure('Execution Time', 'start', 'end');
 
+      const measure = performance.getEntriesByName('Execution Time')[0];
+      console.log(`Cache hit for key: ${cacheKey}`);
+      console.log(`Execution Time (Cache): ${measure.duration.toFixed(3)} ms`);
+
       return res.status(200).json({
         ...stats,
         cached: true, // Indicate the response is cached
       });
     }
 
+    console.log(`Cache miss for key: ${cacheKey}`);
 
     // Fetch all tasks for the user
     const tasks = await Task.find({ userId });
@@ -590,15 +759,11 @@ exports.getDashboardStats = async (req, res) => {
         totalCompletionTime += Math.max(0, endTime - startTime); // Ensure non-negative duration
       } else if (task.status === 'pending') {
         pendingCount++;
-        // const timeLapsed = Math.max(0, (now - startTime) / 3600000); // Ensure non-negative lapsed time
-       
-          // Only calculate lapsed time if endTime >= startTime
-          let timeLapsed = 0;
-          if (endTime >= startTime) {
-            timeLapsed = Math.max(0, (now - startTime) / 3600000); // Ensure non-negative lapsed time
-          }
-       
-        const timeToFinish = Math.max(0, (endTime - now) / 3600000); // Ensure non-negative time to finish
+        let timeLapsed = 0;
+        if (endTime >= startTime) {
+          timeLapsed = Math.max(0, (now - startTime) / 3600000); // Non-negative time lapsed
+        }
+        const timeToFinish = Math.max(0, (endTime - now) / 3600000); // Non-negative time to finish
 
         // Update priority-based summary
         const priorityIndex = task.priority - 1;
@@ -621,48 +786,36 @@ exports.getDashboardStats = async (req, res) => {
     const totalTimeLapsed = pendingSummary.reduce((sum, p) => sum + p.timeLapsed, 0).toFixed(2);
     const totalTimeToFinish = pendingSummary.reduce((sum, p) => sum + p.timeToFinish, 0).toFixed(2);
 
-    // performance.mark('end');
-    // performance.measure('Execution Time', 'start', 'end');
+    // Prepare final stats
+    const stats = {
+      totalTasks,
+      completedPercentage,
+      pendingPercentage,
+      averageCompletionTime,
+      pendingSummary: pendingSummary.map(p => ({
+        ...p,
+        timeLapsed: parseFloat(p.timeLapsed.toFixed(2)),
+        timeToFinish: parseFloat(p.timeToFinish.toFixed(2)),
+      })),
+      totalPendingTasks,
+      totalTimeLapsed,
+      totalTimeToFinish,
+    };
 
-    // const measure = performance.getEntriesByName('Execution Time')[0];
-    // console.log(`Execution Time: ${measure.duration.toFixed(3)} ms`);
+    // Cache the results in Redis with a TTL (e.g., 5 minutes)
+    await redisClient.setex(cacheKey, 300, JSON.stringify(stats)); // Expires in 300 seconds
+
+    performance.mark('end');
+    performance.measure('Execution Time', 'start', 'end');
+
+    const measure = performance.getEntriesByName('Execution Time')[0];
+    console.log(`Execution Time (No Cache): ${measure.duration.toFixed(3)} ms`);
 
     // Final Response
-    // return res.status(200).json({
-    //   totalTasks,
-    //   completedPercentage,
-    //   pendingPercentage,
-    //   averageCompletionTime,
-    //   pendingSummary: pendingSummary.map(p => ({
-    //     ...p,
-    //     timeLapsed: parseFloat(p.timeLapsed.toFixed(2)),
-    //     timeToFinish: parseFloat(p.timeToFinish.toFixed(2)),
-    //   })),
-    //   totalPendingTasks,
-    //   totalTimeLapsed,
-    //   totalTimeToFinish,
-    //   cached: false, // Indicate the response is not cached
-
-    // });
- // Prepare final stats
- const stats = {
-  totalTasks,
-  completedPercentage,
-  pendingPercentage,
-  averageCompletionTime,
-  pendingSummary: pendingSummary.map(p => ({
-    ...p,
-    timeLapsed: parseFloat(p.timeLapsed.toFixed(2)),
-    timeToFinish: parseFloat(p.timeToFinish.toFixed(2)),
-  })),
-  totalPendingTasks,
-  totalTimeLapsed,
-  totalTimeToFinish,
-  cached: false, // Indicate the response is not cached
-};
-     // Cache the results in Redis with a TTL (e.g., 1 hour)
-     await redisClient.setex(cacheKey, 300, JSON.stringify(stats)); // Expires in 300 seconds (1 hour)
-
+    return res.status(200).json({
+      ...stats,
+      cached: false, // Indicate the response is not cached
+    });
   } catch (err) {
     console.error('Error in getDashboardStats:', err.message);
     return res.status(500).json({

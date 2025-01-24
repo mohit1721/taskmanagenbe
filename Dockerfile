@@ -9,6 +9,6 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 5000
+EXPOSE 6000
 # start the backend application
 CMD [ "nodemon","server.js" ]

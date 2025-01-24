@@ -4,14 +4,16 @@ const dotenv = require("dotenv");
 // const path = require("path");
 const authRoutes = require('./routes/authRoutes');
 const taskRoutes = require('./routes/taskRoutes')
-
+const { rateLimit } = require("express-rate-limit");
+const { RedisStore } = require("rate-limit-redis");
 const cookieParser = require("cookie-parser");
 
 const PORT = process.env.PORT || 4000;
 const database = require("./db/database");
 const cors = require("cors");
 const Redis = require('ioredis')
-const redisClient = new Redis;
+// const redisClient = new Redis;
+const redisClient = new Redis(process.env.REDIS_URL);
 
 dotenv.config();//load dotenv config
 database.connect();//
@@ -45,13 +47,30 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   next();
 });
+//rate limiting
+// const ratelimitOptions = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 100,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   handler: (req, res) => {
+//     logger.warn(`Sensitive endpoint rate limit exceeded for IP: ${req.ip}`);
+//     res.status(429).json({ success: false, message: "Too many requests" });
+//   },
+//   store: new RedisStore({
+//     sendCommand: (...args) => redisClient.call(...args),
+//   }),
+// });
+
+// app.use(ratelimitOptions);
 //. routes mount..
 app.use("/api/v1/auth/", authRoutes);
-app.use("/api/v1/", taskRoutes);
+app.use("/api/v1/",taskRoutes);
 
 
-redisClient.on('connect', () => console.log('Redis connected'));
-redisClient.on('error', (err) => console.error('Redis error:', err));
+
+// redisClient.on('connect', () => console.log('Redis connected'));
+// redisClient.on('error', (err) => console.error('Redis error:', err));
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
